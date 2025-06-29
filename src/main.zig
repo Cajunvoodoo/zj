@@ -39,59 +39,15 @@ pub fn tokenizeStreams(allocator: Allocator, readerL: anytype, readerR: anytype)
 }
 
 pub fn main() !void {
-    // const fileL = try std.fs.cwd().createFile(
-    //     "mnemdb.json",
-    //     .{ .read = true, .truncate = false, },
-    // );
-    // defer fileL.close();
-    // const fileR = try std.fs.cwd().createFile(
-    //     "mnemdb.json",
-    //     .{ .read = true, .truncate = false, },
-    // );
-    // defer fileR.close();
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    // var brL = std.io.bufferedReader(fileL.reader());
-    // var brR = std.io.bufferedReader(fileR.reader());
-    // const readerL = brL.reader();
-    // const readerR = brR.reader();
-
     var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
+    defer std.debug.assert(gpa.deinit() == .ok);
     const alloc = gpa.allocator();
 
-    // const sliceU8L = try readerL.readAllAlloc(alloc, 10000000000);
-    // const sliceU8R = try readerR.readAllAlloc(alloc, 10000000000);
-    // _ = sliceU8L;
-    // _ = sliceU8R;
-    // const objL =
-    //     \\ {
-    //     \\   "key_obj0": {
-    //     \\     "key_obj1": [
-    //     \\       "val_obj1_arrelem0",
-    //     \\       "val_obj1_arrelem1",
-    //     \\       "val_obj1_arrelem2",
-    //     \\       "val_obj1_arrelem3"
-    //     \\     ]
-    //     \\   }
-    //     \\ }
-    // ;
-    // const objR =
-    //     \\ {
-    //     \\   "key_obj0": {
-    //     \\     "key_obj1": [
-    //     \\       "val_obj1_arrelem0",
-    //     \\       "val_obj1_arrelem1",
-    //     \\       "val_obj1_arrelem2",
-    //     \\       "val_obj1_arrelem4"
-    //     \\     ]
-    //     \\   }
-    //     \\ }
-    // ;
-    // var streamL = std.io.fixedBufferStream(objLarge);
-    // var streamR = std.io.fixedBufferStream(objLarge);
-
+    // CLI Arguments //////////////////////////////////////////////////////////
     var argIter = std.process.ArgIterator.init();
     var filePaths: [3][]const u8 = undefined;
     var filePathIdx: u8 = 0;
@@ -109,35 +65,12 @@ pub fn main() !void {
     const fileBytesR = try mmapFile(filePaths[2]);
     defer std.posix.munmap(@alignCast(fileBytesR));
 
-
-    var p = printer(alloc, stdout, fileBytesL, fileBytesR);
+    var p = printer(alloc, stdout, fileBytesL, fileBytesR, .{});
     try p.tokenizeStreams();
-    // var jsonReaderL = jsonReader(alloc, streamL.reader());
-    // var diagL = Diagnostics{};
-    // var diagR = Diagnostics{};
-    // var jsonReaderL = jsonReader(alloc, readerL);
-    // defer jsonReaderL.deinit();
-    // // var jsonReaderR = jsonReader(alloc, streamR.reader());
-    // var jsonReaderR = jsonReader(alloc, readerR);
-    // defer jsonReaderR.deinit();
-    // // jsonReaderL.scanner.cursor
+    try p.ppDiffs();
+    p.deinit();
 
-    // jsonReaderL.enableDiagnostics(&diagL);
-    // jsonReaderR.enableDiagnostics(&diagR);
-    // try tokenizeStreams(alloc, &jsonReaderL, &jsonReaderR);
-    // // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    // std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
-
-    // // stdout is for the actual output of your application, for example if you
-    // // are implementing gzip, then only the compressed bytes should be sent to
-    // // stdout, not any debugging messages.
-    // const stdout_file = std.io.getStdOut().writer();
-    // var bw = std.io.bufferedWriter(stdout_file);
-    // const stdout = bw.writer();
-
-    // try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try bw.flush(); // Don't forget to flush!
+    try bw.flush();
 }
 
 fn mmapFile(filepath: []const u8) ![]const u8 {
