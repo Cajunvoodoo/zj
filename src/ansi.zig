@@ -11,3 +11,5 @@ pub fn mkAnsiEscape(comptime colorCode: u8) []const u8 {
 fn intToString(comptime int: u32, comptime buf: []u8) ![]const u8 {
     return try std.fmt.bufPrint(buf, "{}", .{int});
 }
+
+const ClearStyles = "\u{001b}[0m";
