@@ -3,7 +3,7 @@ const std = @import("std");
 const testing = std.testing;
 const lib = @import("zj_lib");
 const Allocator = std.mem.Allocator;
-const ArrayListManaged = std.ArrayList;
+const ArrayListManaged = std.ArrayListAligned;
 // JSON stdlib imports
 const Reader = std.io.Reader;
 const Scanner = std.json.Scanner;
@@ -59,16 +59,20 @@ const Diff = struct {
                 leadingDiffEnd = self.bytes.len;
             }
         }
+        // We may not have a newline in `self.diffBytes`, which trashes the output.
+        // So, get a slice from the suffix to the first newline.
+        const diffBytesLineRemainderIdx: usize = std.mem.indexOf(u8, self.suffixBytes, "\n") orelse 0;
+        const diffBytesLineRemainder: []const u8 = self.suffixBytes[0..diffBytesLineRemainderIdx];
         // Holy shit what a format string! I hate it!
         try writer.print(
             \\========================
                 \\Diff at {d}, showing lines {d}-{d}:
-                \\{s}{s}{s}{s}{s}{s}
+                \\{s}{s}{s}{s}{s}{s}{s}
                 ,
             .{self.diffLine, self.startLine, self.endLine,
-              self.prefixBytes, self.diffBytes,
+              self.prefixBytes, self.diffBytes, diffBytesLineRemainder,
               ansi.mkAnsiEscape(88, .BACKGROUND), std.mem.trimRight(u8, self.alternateBytes, ","), ansi.ClearStyles,
-              self.suffixBytes,},
+              self.suffixBytes[diffBytesLineRemainder.len..],},
               // self.bytes[0..leadingDiffEnd],
               // std.mem.trim(u8, self.alternateBytes, "\n"),
               // self.bytes[trailingDiffStart..]},
@@ -85,11 +89,11 @@ const PrinterFile = struct {
     /// window around the diff region, which gives the diff context.
     /// The pointers here are slices into `bytes`.
     // FIXME: use MultiArrayList
-    diffs: ArrayListManaged(Diff),
+    diffs: ArrayListManaged(Diff, null),
 };
 
 /// Configuration options for the output of `Printer`.
-const PrinterConfig = struct {
+const PrinterConfig = packed struct {
     /// Should we output the file with the diffs?
     outputWholeFile: bool = false,
     /// Should we output the diffs at the end?
@@ -188,10 +192,9 @@ pub fn Printer(comptime WriterType: type) type {
                 // To do so, we go backwards searching for \n starting at `tokenSlice.ptr`
                 // going towards `self.fileL.bytes.ptr`.
                 // The default values below are *safe defaults*.
-                // FIXME: TODO: use tokenDiffStylized instead. Find the prefix, then the suffix, and allocprint it.
                 const diffLineNo = self.fileL.diag.getLine();
                 var start: usize = middle;
-                var startLineNo: usize = diffLineNo - 1;
+                var startLineNo: usize = diffLineNo + 1;
                 var end: usize = middle + tokenSlice.len;
                 var endLineNo: usize = diffLineNo - 1;
                 for (0..self.config.contextWindowSize) |_| {
@@ -251,23 +254,12 @@ pub fn Printer(comptime WriterType: type) type {
                     // Copy for ownership reasons (we need to free later)
                     diffBytes = try self.alloc.dupe(u8, tokenSlice);
                 }
-                // if (tokenSliceStylized) |token| {
-                //     defer self.alloc.free(token);
-                //     // REVIEW: we probably shouldn't be recalculating the diffline.
-                //     // NOTE: prefixStart and prefixEnd are slices of the filebytes themselves.
-                //     const prefixStart = std.mem.lastIndexOf(u8, beforeBytes, "\n") orelse 0;
-                //     const prefixEnd = middle;
-                //     const suffixEnd = std.mem.indexOf(u8, self.fileL.bytes[middle], "\n") orelse self.fileL.bytes.len;
-                //     const suffixStart = middle + tokenSlice.len;
-                //     diffBytes = try std.fmt.allocPrint("{s}{s}{s}", .{prefix})
-                // } else {
-
-                // }
 
                 const diff = Diff{
                     .prefixBytes = beforeBytes[start..],
                     .diffBytes = diffBytes,
                     .suffixBytes = self.fileL.bytes[middle+tokenSlice.len..end],
+                    // TODO: obsolete `Diff.bytes`
                     .bytes = diffSlice,
                     .alternateBytes = fileRLineSlice,
                     .diffLine = diffLineNo,
@@ -280,6 +272,8 @@ pub fn Printer(comptime WriterType: type) type {
 
         /// Helper for `tokenizeStreams`.
         pub fn tokenizeStreams(self: *Self) !void {
+            try self.fileL.diffs.ensureTotalCapacity(32);
+            try self.fileR.diffs.ensureTotalCapacity(32);
             var arena = std.heap.ArenaAllocator.init(self.alloc);
             const alloc = arena.allocator();
             defer arena.deinit();
@@ -302,12 +296,12 @@ pub fn Printer(comptime WriterType: type) type {
             // JsonReader will handle .next*()'s error.BufferUnderrun errors.
             while (true) {
                 cursorStart = self.fileL.diag.getByteOffset();
-                const lTok = readerL.nextAlloc(alloc, .alloc_if_needed) catch |err| {
+                const lTok = readerL.nextAlloc(alloc, .alloc_always) catch |err| {
                     std.debug.print("readerL, {s}: line {d}\n", .{ @errorName(err), self.fileL.diag.getLine(),});
                     return err;
                 }; // REVIEW: what the difference between these .alloc* options are
-                const rTok = readerR.nextAlloc(alloc, .alloc_if_needed) catch |err| {
-                    std.debug.print("readerR, {any}: line {d}\n", .{ @errorName(err), self.fileR.diag.getLine(),});
+                const rTok = readerR.nextAlloc(alloc, .alloc_always) catch |err| {
+                    std.debug.print("readerR, {s}: line {d}\n", .{ @errorName(err), self.fileR.diag.getLine(),});
                     return err;
                 };
                 if (lTok == .end_of_document or rTok == .end_of_document) break;
@@ -341,7 +335,10 @@ fn getTokenSize(token: Token) usize {
 
 fn areTokensEqual(lTok: Token, rTok: Token) bool {
     const areTagsEqual = std.meta.activeTag(lTok) == std.meta.activeTag(rTok);
-    if (!areTagsEqual) return false;
+    if (!areTagsEqual) {
+        std.debug.print("\n\nlTok: {any}, rTok: {any}\n\n", .{lTok, rTok});
+        return false;
+    }
     switch (lTok) {
         .number => |lval| {
             return std.mem.eql(u8, lval, rTok.number); // TODO actually check the other token type?

@@ -41,6 +41,7 @@ pub fn tokenizeStreams(allocator: Allocator, readerL: anytype, readerR: anytype)
 }
 
 pub fn main() !void {
+    const start = std.time.microTimestamp();
     const stdout_file = std.io.getStdOut().writer();
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
@@ -76,6 +77,8 @@ pub fn main() !void {
     p.deinit();
 
     try bw.flush();
+    const end = std.time.microTimestamp();
+    std.debug.print("Took {d} microseconds\n", .{end - start});
     try unmapFile(fileBytesL);
     try unmapFile(fileBytesR);
 }
