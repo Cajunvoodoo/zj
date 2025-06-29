@@ -37,6 +37,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
+        .link_libc = target.result.os.tag == .windows,
     });
 
     // Modules can depend on one another using the `std.Build.Module.addImport` function.

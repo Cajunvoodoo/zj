@@ -265,9 +265,9 @@ pub fn Printer(comptime WriterType: type) type {
                 // }
 
                 const diff = Diff{
-                    .prefixBytes = beforeBytes,
+                    .prefixBytes = beforeBytes[start..],
                     .diffBytes = diffBytes,
-                    .suffixBytes = self.fileL.bytes[middle+tokenSlice.len..],
+                    .suffixBytes = self.fileL.bytes[middle+tokenSlice.len..end],
                     .bytes = diffSlice,
                     .alternateBytes = fileRLineSlice,
                     .diffLine = diffLineNo,
