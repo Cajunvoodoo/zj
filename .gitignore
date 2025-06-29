@@ -22,3 +22,5 @@ zig-out/
 /build/
 /build-*/
 /docgen_tmp/
+/.direnv/
+.gdb_history
