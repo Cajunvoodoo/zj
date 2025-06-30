@@ -34,7 +34,8 @@
       };
 
       # nix build .
-      packages.default = packages.foreign.override (attrs: {
+      packages.default = packages.zj;
+      packages.zj = packages.foreign.override (attrs: {
         # Prefer nix friendly settings.
         zigPreferMusl = false;
 

@@ -25,3 +25,4 @@ zig-out/
 /.direnv/
 .gdb_history
 /.envrc
+/result
