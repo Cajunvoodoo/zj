@@ -1,0 +1,37 @@
+#+title: ~zj~ - JSON diffing tool written in Zig
+* What?
+~zj~ is a simple, minimalist, and fast JSON diffing tool. That's it. Speed is its
+main goal.
+* How?
+~zj~ will memory map your files (with ~mmap~ on Linux and ~MapViewOfFile~ on
+Windows) in order to compare them. It will then use the Zig stdlib's ~JsonReader~
+in order to tokenize the input.
+* Usage:
+There aren't any options at the moment. Just run it like so:
+
+#+begin_example
+$ zig build run -- samples/mnemdb.json samples/mnemdb-mod.json
+#+end_example
+The output should look something like this:
+#+CAPTION: Sample output. Two diffs were found, and the alternative line is displayed
+alongside it.
+[[./imgs/output-example.png]]
+
+* Pros
+- No libraries - Only depends on the Zig stdlib!
+- Pretty fast - Faster than any other JSON diffing tool I could find! Almost as
+  fast as ~diff~ itself!
+- Streams JSON - Does not require the whole file to be resident in memory.
+- Supports Windows, Linux.
+* Cons
+- Output won't coalesce - If you input two very different JSON files, your
+  output will be worse than useless. It could be possible to implement a diff
+  coalescing algorithm, but if your files are so different they aren't
+  comparable, perhaps your eyes can substitute for this tool.
+* Caveats
+- Don't expect the most beautiful output just yet. I hacked this together in a
+  few hours over the course of a weekend or two.
+- Don't expect clever diffing. This tool simply uses a token stream to diff. It
+  does not deserialize anything.
+- The code is fairly ugly at the moment, and I haven't done any performance passes
+  yet. I expect this could be made ~30-40% faster.
