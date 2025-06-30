@@ -29,17 +29,6 @@ const TaggedPackedPtr = @import("./taggedptr.zig").TaggedPackedPtr;
 const printerMod = @import("printer.zig");
 const printer = printerMod.printer;
 
-// TODO remove/implement in a streaming fashion
-pub fn tokenizeStreams(allocator: Allocator, readerL: anytype, readerR: anytype) !void {
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
-
-    var p = printer(allocator, stdout, readerL, readerR);
-    try p.tokenizeStreams();
-    try bw.flush();
-}
-
 pub fn main() !void {
     const start = std.time.microTimestamp();
     const stdout_file = std.io.getStdOut().writer();
@@ -153,89 +142,4 @@ fn unmapFile(fileBytes: []const u8) !void {
         },
         else => std.posix.munmap(@alignCast(fileBytes)),
     }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-//                            TESTING AND HELPERS                            //
-///////////////////////////////////////////////////////////////////////////////
-
-// TODO, FIXME remove/implement
-fn compareDocuments(readerL: anytype, readerR: anytype) bool {
-    tokenizeStreams(std.testing.allocator, readerL, readerR) catch return false;
-    return true;
-}
-
-fn testJsonSimilar(objL: []const u8, objR: []const u8) !void {
-    var streamL = std.io.fixedBufferStream(objL);
-    var streamR = std.io.fixedBufferStream(objR);
-
-    var jsonReaderL = jsonReader(std.testing.allocator, streamL.reader());
-    defer jsonReaderL.deinit();
-    var jsonReaderR = jsonReader(std.testing.allocator, streamR.reader());
-    defer jsonReaderR.deinit();
-
-    try testing.expect(compareDocuments(&jsonReaderL, &jsonReaderR));
-}
-
-fn testJsonDissimilar(objL: []const u8, objR: []const u8) !void {
-    var streamL = std.io.fixedBufferStream(objL);
-    var streamR = std.io.fixedBufferStream(objR);
-
-    var jsonReaderL = jsonReader(std.testing.allocator, streamL.reader());
-    defer jsonReaderL.deinit();
-    var jsonReaderR = jsonReader(std.testing.allocator, streamR.reader());
-    defer jsonReaderR.deinit();
-
-    try testing.expect(!compareDocuments(&jsonReaderL, &jsonReaderR));
-}
-
-test "compare similar objects (trivial)" {
-    const obj =
-        \\ {}
-    ;
-    try testJsonSimilar(obj, obj);
-}
-
-test "compare similar objects (non-trivial, nestedKeyArr)" {
-    const obj =
-        \\ {
-        \\   "key_obj0": {
-        \\     "key_obj1": [
-        \\       "val_obj1_arrelem0",
-        \\       "val_obj1_arrelem1",
-        \\       "val_obj1_arrelem2",
-        \\       "val_obj1_arrelem3"
-        \\     ]
-        \\   }
-        \\ }
-    ;
-    try testJsonSimilar(obj, obj);
-}
-
-test "compare dissimilar objects (non-trivial, nestedKeyArr)" {
-    const objL =
-        \\ {
-        \\   "key_obj0": {
-        \\     "key_obj1": [
-        \\       "val_obj1_arrelem0",
-        \\       "val_obj1_arrelem1",
-        \\       "val_obj1_arrelem2",
-        \\       "val_obj1_arrelem3"
-        \\     ]
-        \\   }
-        \\ }
-    ;
-    const objR =
-        \\ {
-        \\   "key_obj0": {
-        \\     "key_obj1": [
-        \\       "val_obj1_arrelem0",
-        \\       "val_obj1_arrelem1",
-        \\       "val_obj1_arrelem2",
-        \\       "val_obj1_arrelem4"
-        \\     ]
-        \\   }
-        \\ }
-    ;
-    try testJsonDissimilar(objL, objR);
 }
