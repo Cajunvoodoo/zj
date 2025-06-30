@@ -46,9 +46,14 @@ pub fn main() !void {
     var bw = std.io.bufferedWriter(stdout_file);
     const stdout = bw.writer();
 
-    var gpa = std.heap.GeneralPurposeAllocator(.{}).init;
-    defer std.debug.assert(gpa.deinit() == .ok);
-    const alloc = gpa.allocator();
+    var allocator = if (builtin.mode == .ReleaseFast) @as(void, {}) else std.heap.DebugAllocator(.{}).init;
+    defer if (builtin.mode != .ReleaseFast) {
+        switch (allocator.deinit()) {
+            .leak => @panic("leak"),
+            .ok => {},
+        }
+    };
+    const alloc = if (builtin.mode == .ReleaseFast) std.heap.smp_allocator else allocator.allocator();
 
     // CLI Arguments //////////////////////////////////////////////////////////
     // NOTE: We can't use `std.process.ArgIterator` because of windows support.
