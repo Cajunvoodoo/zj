@@ -13,8 +13,7 @@ There aren't any options at the moment. Just run it like so:
 $ zig build run -- samples/mnemdb.json samples/mnemdb-mod.json
 #+end_example
 The output should look something like this:
-#+CAPTION: Sample output. Two diffs were found, and the alternative line is displayed
-alongside it.
+#+CAPTION: Sample output. Two diffs were found, and the alternative line is displayed alongside it.
 [[./imgs/output-example.png]]
 
 * Pros
